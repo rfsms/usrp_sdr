@@ -19,7 +19,6 @@ This is an example of how to list things you need to use the software and how to
 
 
 ### Installation
-
 1. Install necessary components to build from source:
     ```sh
     sudo apt-get install git cmake libboost-all-dev libusb-1.0-0-dev python3-docutils python3-mako python3-numpy python3-requests python3-ruamel.yaml python3-setuptools build-essential
@@ -39,7 +38,7 @@ This is an example of how to list things you need to use the software and how to
    sudo make install
    sudo ldconfig
    ```
-4. Test the drivers and imports in python REPL
+4. Test the drivers and imports in python REPL (assuming IP configuration has been completed)
    ```python3
     import uhd
     usrp = uhd.usrp.MultiUSRP()
@@ -59,7 +58,6 @@ This is an example of how to list things you need to use the software and how to
 
 
 ## HW Overview
- 
 Front Panel:
 * **<u>Ensure that before transmitting that the TX port is terminated either with a load or to an antenna.</u>**
 * Note RF A & RF B Ports both of which have a TX/RX port as well as RX2 ports.  I believe this is a shared LO so while we can do 2x2 RX MIMO, this will need to be on the same frequency.  
@@ -70,17 +68,20 @@ Rear Panel:
     ![alt text](images/rearPanel.png)
 
 
-Host Interface Connections:
-* Note limited bandwidth dependent on interface connections
-
     ![alt text](images/interfaceOptions.png)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Host System Configuration
-### Network Buffers
+There are two possible connections to the SDR from a host machine either 1G copper or 10G optical with limited bandwidth dependent on interface connections.,  To utilize the 1G connection use Port0, while 10G can either be used on Port0 or Port1.
+### IP Assignments
+Host address for connectivity between interfaces requires a different subnet
+* Port 0 - 1G: 192.168.10.1/24 - SDR will have a pre-assigned 192.168.10.2 address
+* POrt 0 - 10G: 192.168.30.1/24 - SDR will have a pre-assigned 192.168.30.2 address
+* Port 1 - 10G: 192.168.40.1/24 - SDR will have a pre-assigned 192.168.40.2 address
 
-* Set Network Buffers as follows.  The first option is temporary and will not be retained after a restart
+### Network Buffers
+* Set UDP Buffer Size as follows.  The first option is temporary and will not be retained after a restart
 ```sh
    sudo sysctl -w net.core.wmem_max=33554432
    sudo sysctl -w net.core.rmem_max=33554432
@@ -94,9 +95,22 @@ Host Interface Connections:
    net.core.wmem_default=33554432
    net.core.rmem_default=33554432
 ```
+* Validation can be performed with `sudo sysctl -a |egrep -i '(net.core.r|net.core.w)'`
+
+### Ethernet MTU
+* MTU should be manually fixed.  Non-permanently, this can be performed by using the following command `sudo ip link set <interface> mtu <MTU>`
+
+    * If using the 1G ethernet interface, it is advisable to fix MTU to 1500
+    * Set the MTU to 9000 when using the 10G connection 
+
+* A more permanent solution will be to manually configure via GUI or using nmtui as shown below:
+    ![alt text](images/nmTUI.png)
+
+* Validation can be performed with `ip link show <interface>`
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Usage and basic validation 
+## Firmware
 ### Firmware Loader
 * You may run into a situation where the firmware does not match expected.  This can also happen if you switch between 1G/10G interfaces.  An example can be seen below to upgrade:
 * **Note: A reboot of the SDR is required after firmware upgrade**
@@ -123,6 +137,7 @@ Power-cycle the USRP X310 to use the new image.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## Usage and basic validation 
 ### Probing the device to validate internals
 ```sh
         noaa_gms@noaa-gms-server0:~$ uhd_usrp_probe --args addr=192.168.10.2 
@@ -254,10 +269,10 @@ Power-cycle the USRP X310 to use the new image.
         |   |   |   Connection Type: IQ
         |   |   |   Uses LO offset: No
 ```
-
-* 
+ 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+### Benchmarking
 * Benchmark (Using the 1G port and configured sysctl params you can expect a maximum of 28.571Msps before overruns occur)
     ```sh
     python /usr/lib/uhd/examples/python/benchmark_rate.py --rx_rate 56e6 --args "num_recv_frames=1000"
