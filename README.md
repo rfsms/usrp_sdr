@@ -13,7 +13,7 @@ This is an example of how to list things you need to use the software and how to
 * Verifying Operations: https://kb.ettus.com/Verifying_the_Operation_of_the_USRP_Using_UHD_and_GNU_Radio
 * PySDR: https://pysdr.org/content/usrp.html
 * USRP & MATLAB: https://www.mathworks.com/hardware-support/usrp.html
-* UHD Python API: https://kb.ettus.com/UHD_Python_API
+* UHD Python API: https://kb.ettus.com/UHD_Python_API 
 * Places to look for help: https://kb.ettus.com/StackExchange 
 * Generate spectrograms from received signal: https://stackoverflow.com/questions/78076552/how-can-i-generate-detect-signals-2-4ghz-and-generate-spectrograms-from-them-l
 
@@ -57,7 +57,208 @@ This is an example of how to list things you need to use the software and how to
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-5. Benchmark (Using the 1G port and configured sysctl params you can expect a maximum of 28.571Msps before overruns occur)
+
+## HW Overview
+ 
+Front Panel:
+* **<u>Ensure that before transmitting that the TX port is terminated either with a load or to an antenna.</u>**
+* Note RF A & RF B Ports both of which have a TX/RX port as well as RX2 ports.  I believe this is a shared LO so while we can do 2x2 RX MIMO, this will need to be on the same frequency.  
+    ![alt text](images/frontPanel.png)
+
+Rear Panel:
+* Note 1G/10G Eth interfaces.  For each you will need either an SFP or 10GigE Interface Kit
+    ![alt text](images/rearPanel.png)
+
+
+Host Interface Connections:
+* Note limited bandwidth dependent on interface connections
+
+    ![alt text](images/interfaceOptions.png)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Host System Configuration
+### Network Buffers
+
+* Set Network Buffers as follows.  The first option is temporary and will not be retained after a restart
+```sh
+   sudo sysctl -w net.core.wmem_max=33554432
+   sudo sysctl -w net.core.rmem_max=33554432
+   sudo sysctl -w net.core.wmem_default=33554432
+   sudo sysctl -w net.core.rmem_default=33554432
+```
+* On an Ubuntu 22.04 system, you can make this change persistent by creating a file in sysctl.d (/etc/systctl.d/100-usrp-perf.conf).  This file should contain:
+```sh
+   net.core.wmem_max=33554432
+   net.core.rmem_max=33554432
+   net.core.wmem_default=33554432
+   net.core.rmem_default=33554432
+```
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Usage and basic validation 
+### Firmware Loader
+* You may run into a situation where the firmware does not match expected.  This can also happen if you switch between 1G/10G interfaces.  An example can be seen below to upgrade:
+* **Note: A reboot of the SDR is required after firmware upgrade**
+```sh
+[INFO] [X300] X300 initialization sequence...
+Error: RuntimeError: Expected FPGA compatibility number 39.0, but got 38.0:
+```
+```sh
+noaa_gms@noaa-gms-server0:~/git/usrp_sdr$ "/usr/local/bin/uhd_image_loader" --args="type=x300,addr=192.168.10.2"
+[INFO] [UHD] linux; GNU C++ version 11.4.0; Boost_107400; UHD_4.6.0.0-166-g041eef34
+Unit: USRP X310 (31E0CA7, 192.168.10.2)
+FPGA Image: /usr/local/share/uhd/images/usrp_x310_fpga_HG.bit
+-- Initializing FPGA loading...successful. 
+-- Loading HG FPGA image: 100% (121/121 sectors)
+-- Finalizing image load...successful.
+Power-cycle the USRP X310 to use the new image.
+```
+
+### Firmware Updates
+* To update local images you can use the following command to update the /usr/local/share/uhd/images folder:
+```sh
+    args="type=x300,addr=192.168.10.2"
+```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Probing the device to validate internals
+```sh
+        noaa_gms@noaa-gms-server0:~$ uhd_usrp_probe --args addr=192.168.10.2 
+        [INFO] [UHD] linux; GNU C++ version 11.3.0; Boost_107400; UHD_4.1.0.5-0-unknown
+        [INFO] [X300] X300 initialization sequence...
+        [INFO] [X300] Maximum frame size: 1472 bytes.
+        [INFO] [X300] Radio 1x clock: 200 MHz
+        _____________________________________________________
+        /
+        |       Device: X-Series Device
+        |     _____________________________________________________
+        |    /
+        |   |       Mboard: X310
+        |   |   revision: 11
+        |   |   revision_compat: 7
+        |   |   product: 30818
+        |   |   mac-addr0: 00:80:2f:30:dd:e2
+        |   |   mac-addr1: 00:80:2f:30:dd:e3
+        |   |   gateway: 192.168.10.1
+        |   |   ip-addr0: 192.168.10.2
+        |   |   subnet0: 255.255.255.0
+        |   |   ip-addr1: 192.168.20.2
+        |   |   subnet1: 255.255.255.0
+        |   |   ip-addr2: 192.168.30.2
+        |   |   subnet2: 255.255.255.0
+        |   |   ip-addr3: 192.168.40.2
+        |   |   subnet3: 255.255.255.0
+        |   |   serial: 31E0CA7
+        |   |   FW Version: 6.0
+        |   |   FPGA Version: 38.0
+        |   |   FPGA git hash: 26793b8
+        |   |   
+        |   |   Time sources:  internal, external, gpsdo
+        |   |   Clock sources: internal, external, gpsdo
+        |   |   Sensors: ref_locked
+        |     _____________________________________________________
+        |    /
+        |   |       RFNoC blocks on this device:
+        |   |   
+        |   |   * 0/DDC#0
+        |   |   * 0/DDC#1
+        |   |   * 0/DUC#0
+        |   |   * 0/DUC#1
+        |   |   * 0/Radio#0
+        |   |   * 0/Radio#1
+        |   |   * 0/Replay#0
+        |     _____________________________________________________
+        |    /
+        |   |       Static connections on this device:
+        |   |   
+        |   |   * 0/SEP#0:0==>0/DUC#0:0
+        |   |   * 0/DUC#0:0==>0/Radio#0:0
+        |   |   * 0/Radio#0:0==>0/DDC#0:0
+        |   |   * 0/DDC#0:0==>0/SEP#0:0
+        |   |   * 0/Radio#0:1==>0/DDC#0:1
+        |   |   * 0/DDC#0:1==>0/SEP#1:0
+        |   |   * 0/SEP#2:0==>0/DUC#1:0
+        |   |   * 0/DUC#1:0==>0/Radio#1:0
+        |   |   * 0/Radio#1:0==>0/DDC#1:0
+        |   |   * 0/DDC#1:0==>0/SEP#2:0
+        |   |   * 0/Radio#1:1==>0/DDC#1:1
+        |   |   * 0/DDC#1:1==>0/SEP#3:0
+        |   |   * 0/SEP#4:0==>0/Replay#0:0
+        |   |   * 0/Replay#0:0==>0/SEP#4:0
+        |   |   * 0/SEP#5:0==>0/Replay#0:1
+        |   |   * 0/Replay#0:1==>0/SEP#5:0
+        |     _____________________________________________________
+        |    /
+        |   |       TX Dboard: 0/Radio#0
+        |   |   ID: UBX-160 v2 (0x007d)
+        |   |   Serial: 31D568D
+        |   |     _____________________________________________________
+        |   |    /
+        |   |   |       TX Frontend: 0
+        |   |   |   Name: UBX TX
+        |   |   |   Antennas: TX/RX, CAL
+        |   |   |   Sensors: lo_locked
+        |   |   |   Freq range: 10.000 to 6000.000 MHz
+        |   |   |   Gain range PGA0: 0.0 to 31.5 step 0.5 dB
+        |   |   |   Bandwidth range: 160000000.0 to 160000000.0 step 0.0 Hz
+        |   |   |   Connection Type: QI
+        |   |   |   Uses LO offset: No
+        |     _____________________________________________________
+        |    /
+        |   |       RX Dboard: 0/Radio#0
+        |   |   ID: UBX-160 v2 (0x007e)
+        |   |   Serial: 31D568D
+        |   |     _____________________________________________________
+        |   |    /
+        |   |   |       RX Frontend: 0
+        |   |   |   Name: UBX RX
+        |   |   |   Antennas: TX/RX, RX2, CAL
+        |   |   |   Sensors: lo_locked
+        |   |   |   Freq range: 10.000 to 6000.000 MHz
+        |   |   |   Gain range PGA0: 0.0 to 31.5 step 0.5 dB
+        |   |   |   Bandwidth range: 160000000.0 to 160000000.0 step 0.0 Hz
+        |   |   |   Connection Type: IQ
+        |   |   |   Uses LO offset: No
+        |     _____________________________________________________
+        |    /
+        |   |       TX Dboard: 0/Radio#1
+        |   |   ID: UBX-160 v2 (0x007d)
+        |   |   Serial: 31D5708
+        |   |     _____________________________________________________
+        |   |    /
+        |   |   |       TX Frontend: 0
+        |   |   |   Name: UBX TX
+        |   |   |   Antennas: TX/RX, CAL
+        |   |   |   Sensors: lo_locked
+        |   |   |   Freq range: 10.000 to 6000.000 MHz
+        |   |   |   Gain range PGA0: 0.0 to 31.5 step 0.5 dB
+        |   |   |   Bandwidth range: 160000000.0 to 160000000.0 step 0.0 Hz
+        |   |   |   Connection Type: QI
+        |   |   |   Uses LO offset: No
+        |     _____________________________________________________
+        |    /
+        |   |       RX Dboard: 0/Radio#1
+        |   |   ID: UBX-160 v2 (0x007e)
+        |   |   Serial: 31D5708
+        |   |     _____________________________________________________
+        |   |    /
+        |   |   |       RX Frontend: 0
+        |   |   |   Name: UBX RX
+        |   |   |   Antennas: TX/RX, RX2, CAL
+        |   |   |   Sensors: lo_locked
+        |   |   |   Freq range: 10.000 to 6000.000 MHz
+        |   |   |   Gain range PGA0: 0.0 to 31.5 step 0.5 dB
+        |   |   |   Bandwidth range: 160000000.0 to 160000000.0 step 0.0 Hz
+        |   |   |   Connection Type: IQ
+        |   |   |   Uses LO offset: No
+```
+
+* 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+* Benchmark (Using the 1G port and configured sysctl params you can expect a maximum of 28.571Msps before overruns occur)
     ```sh
     python /usr/lib/uhd/examples/python/benchmark_rate.py --rx_rate 56e6 --args "num_recv_frames=1000"
     ```
@@ -113,178 +314,3 @@ This is an example of how to list things you need to use the software and how to
         Num timeouts (Tx):        0
         Num timeouts (Rx):        0
     ```  
-
-## Usage and basic validation 
- 
-### HW Overview
- 
-Front Panel:
-* **<u>Ensure that before transmitting that the TX port is terminated either with a load or to an antenna.</u>**
-* Note RF A & RF B Ports both of which have a TX/RX port as well as RX2 ports.  I believe this is a shared LO so while we can do 2x2 RX MIMO, this will need to be on the same frequency.  
-    ![alt text](images/frontPanel.png)
-
-Rear Panel:
-* Note 1G/10G Eth interfaces.  For each you will need either an SFP or 10GigE Interface Kit
-    ![alt text](images/rearPanel.png)
-
-
-Host Interface Connections:
-* Note limited bandwidth dependent on interface connections
-
-    ![alt text](images/interfaceOptions.png)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Connection Overview
-
-
-### Firmware Loader
-* You may run into a situation where the firmware does not match expected.  This can also happen if you switch between 1G/10G interfaces.  An example can be seen below to upgrade:
-* **Note: A reboot of the SDR is required after firmware upgrade**
-```sh
-[INFO] [X300] X300 initialization sequence...
-Error: RuntimeError: Expected FPGA compatibility number 39.0, but got 38.0:
-```
-```sh
-noaa_gms@noaa-gms-server0:~/git/usrp_sdr$ "/usr/local/bin/uhd_image_loader" --args="type=x300,addr=192.168.10.2"
-[INFO] [UHD] linux; GNU C++ version 11.4.0; Boost_107400; UHD_4.6.0.0-166-g041eef34
-Unit: USRP X310 (31E0CA7, 192.168.10.2)
-FPGA Image: /usr/local/share/uhd/images/usrp_x310_fpga_HG.bit
--- Initializing FPGA loading...successful. 
--- Loading HG FPGA image: 100% (121/121 sectors)
--- Finalizing image load...successful.
-Power-cycle the USRP X310 to use the new image.
-```
-
-### Probing the device to validate internals
-```sh
-noaa_gms@noaa-gms-server0:~$ uhd_usrp_probe --args addr=192.168.10.2 
-[INFO] [UHD] linux; GNU C++ version 11.3.0; Boost_107400; UHD_4.1.0.5-0-unknown
-[INFO] [X300] X300 initialization sequence...
-[INFO] [X300] Maximum frame size: 1472 bytes.
-[INFO] [X300] Radio 1x clock: 200 MHz
-  _____________________________________________________
- /
-|       Device: X-Series Device
-|     _____________________________________________________
-|    /
-|   |       Mboard: X310
-|   |   revision: 11
-|   |   revision_compat: 7
-|   |   product: 30818
-|   |   mac-addr0: 00:80:2f:30:dd:e2
-|   |   mac-addr1: 00:80:2f:30:dd:e3
-|   |   gateway: 192.168.10.1
-|   |   ip-addr0: 192.168.10.2
-|   |   subnet0: 255.255.255.0
-|   |   ip-addr1: 192.168.20.2
-|   |   subnet1: 255.255.255.0
-|   |   ip-addr2: 192.168.30.2
-|   |   subnet2: 255.255.255.0
-|   |   ip-addr3: 192.168.40.2
-|   |   subnet3: 255.255.255.0
-|   |   serial: 31E0CA7
-|   |   FW Version: 6.0
-|   |   FPGA Version: 38.0
-|   |   FPGA git hash: 26793b8
-|   |   
-|   |   Time sources:  internal, external, gpsdo
-|   |   Clock sources: internal, external, gpsdo
-|   |   Sensors: ref_locked
-|     _____________________________________________________
-|    /
-|   |       RFNoC blocks on this device:
-|   |   
-|   |   * 0/DDC#0
-|   |   * 0/DDC#1
-|   |   * 0/DUC#0
-|   |   * 0/DUC#1
-|   |   * 0/Radio#0
-|   |   * 0/Radio#1
-|   |   * 0/Replay#0
-|     _____________________________________________________
-|    /
-|   |       Static connections on this device:
-|   |   
-|   |   * 0/SEP#0:0==>0/DUC#0:0
-|   |   * 0/DUC#0:0==>0/Radio#0:0
-|   |   * 0/Radio#0:0==>0/DDC#0:0
-|   |   * 0/DDC#0:0==>0/SEP#0:0
-|   |   * 0/Radio#0:1==>0/DDC#0:1
-|   |   * 0/DDC#0:1==>0/SEP#1:0
-|   |   * 0/SEP#2:0==>0/DUC#1:0
-|   |   * 0/DUC#1:0==>0/Radio#1:0
-|   |   * 0/Radio#1:0==>0/DDC#1:0
-|   |   * 0/DDC#1:0==>0/SEP#2:0
-|   |   * 0/Radio#1:1==>0/DDC#1:1
-|   |   * 0/DDC#1:1==>0/SEP#3:0
-|   |   * 0/SEP#4:0==>0/Replay#0:0
-|   |   * 0/Replay#0:0==>0/SEP#4:0
-|   |   * 0/SEP#5:0==>0/Replay#0:1
-|   |   * 0/Replay#0:1==>0/SEP#5:0
-|     _____________________________________________________
-|    /
-|   |       TX Dboard: 0/Radio#0
-|   |   ID: UBX-160 v2 (0x007d)
-|   |   Serial: 31D568D
-|   |     _____________________________________________________
-|   |    /
-|   |   |       TX Frontend: 0
-|   |   |   Name: UBX TX
-|   |   |   Antennas: TX/RX, CAL
-|   |   |   Sensors: lo_locked
-|   |   |   Freq range: 10.000 to 6000.000 MHz
-|   |   |   Gain range PGA0: 0.0 to 31.5 step 0.5 dB
-|   |   |   Bandwidth range: 160000000.0 to 160000000.0 step 0.0 Hz
-|   |   |   Connection Type: QI
-|   |   |   Uses LO offset: No
-|     _____________________________________________________
-|    /
-|   |       RX Dboard: 0/Radio#0
-|   |   ID: UBX-160 v2 (0x007e)
-|   |   Serial: 31D568D
-|   |     _____________________________________________________
-|   |    /
-|   |   |       RX Frontend: 0
-|   |   |   Name: UBX RX
-|   |   |   Antennas: TX/RX, RX2, CAL
-|   |   |   Sensors: lo_locked
-|   |   |   Freq range: 10.000 to 6000.000 MHz
-|   |   |   Gain range PGA0: 0.0 to 31.5 step 0.5 dB
-|   |   |   Bandwidth range: 160000000.0 to 160000000.0 step 0.0 Hz
-|   |   |   Connection Type: IQ
-|   |   |   Uses LO offset: No
-|     _____________________________________________________
-|    /
-|   |       TX Dboard: 0/Radio#1
-|   |   ID: UBX-160 v2 (0x007d)
-|   |   Serial: 31D5708
-|   |     _____________________________________________________
-|   |    /
-|   |   |       TX Frontend: 0
-|   |   |   Name: UBX TX
-|   |   |   Antennas: TX/RX, CAL
-|   |   |   Sensors: lo_locked
-|   |   |   Freq range: 10.000 to 6000.000 MHz
-|   |   |   Gain range PGA0: 0.0 to 31.5 step 0.5 dB
-|   |   |   Bandwidth range: 160000000.0 to 160000000.0 step 0.0 Hz
-|   |   |   Connection Type: QI
-|   |   |   Uses LO offset: No
-|     _____________________________________________________
-|    /
-|   |       RX Dboard: 0/Radio#1
-|   |   ID: UBX-160 v2 (0x007e)
-|   |   Serial: 31D5708
-|   |     _____________________________________________________
-|   |    /
-|   |   |       RX Frontend: 0
-|   |   |   Name: UBX RX
-|   |   |   Antennas: TX/RX, RX2, CAL
-|   |   |   Sensors: lo_locked
-|   |   |   Freq range: 10.000 to 6000.000 MHz
-|   |   |   Gain range PGA0: 0.0 to 31.5 step 0.5 dB
-|   |   |   Bandwidth range: 160000000.0 to 160000000.0 step 0.0 Hz
-|   |   |   Connection Type: IQ
-|   |   |   Uses LO offset: No
-```
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
