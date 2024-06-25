@@ -2,11 +2,13 @@
 
 import uhd
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 # Parameters
 samp_rate = 20e6  # Sample rate in sps
 center_freq = 1702.5e6  # Center frequency in Hz
-gain = 20  # Gain in dB
+gain = 50  # Gain in dB
 capture_duration = 0.160e-3  # Capture duration in seconds (0.160ms)
 
 # Calculate the number of samples to capture for 0.160ms
@@ -32,6 +34,20 @@ metadata = uhd.types.RXMetadata()
 streamer = usrp.get_rx_stream(st_args)
 recv_buffer = np.zeros((1, num_samps), dtype=np.complex64)
 
+# Setup the plot
+fig, ax = plt.subplots()
+line, = ax.plot([], [], lw=2)
+ax.set_xlim(-samp_rate / 2 / 1e6, samp_rate / 2 / 1e6)
+ax.set_ylim(-100, 0)
+ax.set_xlabel("Frequency (MHz)")
+ax.set_ylabel("Magnitude (dB)")
+ax.set_title("Real-Time Spectrum View")
+ax.grid()
+
+# Function to initialize the plot
+def init():
+    line.set_data([], [])
+    return line,
 
 # Function to update the plot
 def update(frame):
@@ -53,5 +69,11 @@ def update(frame):
     # Perform FFT and update plot
     fft_result = np.fft.fftshift(np.fft.fft(samples))
     freq_axis = np.fft.fftshift(np.fft.fftfreq(num_samps, 1 / samp_rate))
+    line.set_data(freq_axis / 1e6, 20 * np.log10(np.abs(fft_result)))
+    return line,
 
+# Set up animation
+ani = animation.FuncAnimation(fig, update, init_func=init, blit=True, interval=1000)
 
+# Display the plot
+plt.show()
